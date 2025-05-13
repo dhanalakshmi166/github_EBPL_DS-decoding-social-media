@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Social Media Emotion Decoder</title>
+<style>
+  /* Reset and base */
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    margin: 0;
+    min-height: 600px;
+    max-width: 350px;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+  h1 {
+    text-align: center;
+    font-weight: 700;
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+    letter-spacing: 1.1px;
+  }
+  p.subtitle {
+    text-align: center;
+    font-weight: 400;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    opacity: 0.85;
+  }
+  input[type="file"] {
+    width: 100%;
+    padding: 0.6rem;
+    border-radius: 6px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    background-color: #5a49cc;
+    color: white;
+    transition: background-color 0.3s ease;
+  }
+  input[type="file"]:hover {
+    background-color: #473bad;
+  }
+  .results {
+    margin-top: 1rem;
+    background: rgba(255 255 255 / 0.15);
+    border-radius: 12px;
+    padding: 0.75rem;
+    max-height: 340px;
+    overflow-y: auto;
+    box-shadow: 0 0 8px rgba(0,0,0,0.35);
+  }
+  .results h2 {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+    text-align: center;
+    letter-spacing: 0.9px;
+  }
+  .emotion-bar-container {
+    margin: 0.25rem 0.5rem;
+    background: rgba(255 255 255 / 0.15);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .emotion-bar {
+    height: 24px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 600;
+    padding-left: 0.4rem;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    user-select: none;
+  }
+  .emotion-label {
+    margin-left: 0.5rem;
+    font-size: 0.85rem;
+    letter-spacing: 0.7px;
+  }
+  .tweet {
+    background: rgba(255 255 255 / 0.1);
+    border-radius: 10px;
+    padding: 0.5rem;
+    margin: 0.25rem 0;
+    font-size: 0.9rem;
+    line-height: 1.2;
+    max-height: 80px;
+    overflow: hidden;
+  }
+
+  /* Emotion Colors */
+  .emotion-positive { background-color: #55a630; }
+  .emotion-negative { background-color: #d33f49; }
+  .emotion-neutral { background-color: #6c757d; }
+
+  /* Scrollbar styling */
+  .results::-webkit-scrollbar {
+    width: 6px;
+  }
+  .results::-webkit-scrollbar-thumb {
+    background-color: rgba(255 255 255 / 0.35);
+    border-radius: 10px;
+  }
+  .results::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  @media (max-width: 350px) {
+    body {
+      padding: 0.5rem;
+    }
+  }
+</style>
+</head>
+<body>
+  <h1>Emotion Decoder</h1>
+  <p class="subtitle">Upload your Kaggle sentiment CSV file to analyze emotions in social media conversations</p>
+
+  <input type="file" id="csvFileInput" accept=".csv" />
+
+  <div class="results" id="results" aria-live="polite" aria-atomic="true"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sentiment@5.0.3/build/sentiment.min.js"></script>
+<script>
+  // Initialize Sentiment analyzer
+  const sentiment = new Sentiment();
+
+  // Utility: sanitize text for display
+  function sanitizeText(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // Color map for sentiments
+  const sentimentColorMap = {
+    positive: '#55a630',
+    negative: '#d33f49',
+    neutral: '#6c757d'
+  };
+
+  function getSentimentLabel(score) {
+    if(score > 0) return "Positive";
+    if(score < 0) return "Negative";
+    return "Neutral";
+  }
+
+  function getEmotionClass(score) {
+    if(score > 0) return 'emotion-positive';
+    if(score < 0) return 'emotion-negative';
+    return 'emotion-neutral';
+  }
+
+  document.getElementById('csvFileInput').addEventListener('change', function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const resultsEl = document.getElementById('results');
+    resultsEl.innerHTML = '<p style="text-align:center;">Processing file...</p>';
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      encoding: "UTF-8",
+      complete: function(results) {
+        const data = results.data;
+        // Detect text column heuristically (common columns: text, tweet, content, message)
+        const textColumn = Object.keys(data[0]).find(col => ['text','tweet','content','message'].includes(col.toLowerCase())) || Object.keys(data[0])[0];
+
+        if(!textColumn) {
+          resultsEl.innerHTML = '<p style="color:#f44336;text-align:center;">No suitable text column found in CSV.</p>';
+          return;
+        }
+
+        if(data.length === 0){
+          resultsEl.innerHTML = '<p style="color:#f44336;text-align:center;">CSV file is empty or no rows found.</p>';
+          return;
+        }
+
+        // Aggregate sentiment scores and counts
+        let sentimentCounts = {
+          positive: 0,
+          negative: 0,
+          neutral: 0
+        };
+
+        // Analyze emotion of each text entry
+        const analyzedEntries = data.map(row => {
+          let txt = row[textColumn];
+          if(!txt) txt = "";
+          const analysis = sentiment.analyze(txt);
+          const score = analysis.score;
+
+          const label = getSentimentLabel(score);
+          sentimentCounts[label.toLowerCase()]++;
+
+          return {
+            text: txt,
+            score: score,
+            label: label
+          };
+        });
+
+        // Sort by sentiment score for display convenience
+        analyzedEntries.sort((a,b) => b.score - a.score);
+
+        // Build HTML to display results
+        let html = '<h2>Sentiment Summary</h2>';
+        for(const key in sentimentCounts){
+          const count = sentimentCounts[key];
+          const color = sentimentColorMap[key];
+          const widthPercent = (count / data.length) * 100;
+          html += `
+            <div class="emotion-bar-container" aria-label="${key} sentiment count: ${count}">
+              <div class="emotion-bar" style="background-color:${color}; width: ${widthPercent}%; min-width: 40px;">
+                <span class="emotion-label">${key.charAt(0).toUpperCase()+key.slice(1)}: ${count}</span>
+              </div>
+            </div>
+          `;
+        }
+        html += '<h2>Sample Tweets with Sentiment</h2>';
+
+        // Show top 15 samples with highlights
+        const maxSamples = 15;
+        analyzedEntries.slice(0, maxSamples).forEach(entry => {
+          const safeText = sanitizeText(entry.text);
+          const emotionClass = getEmotionClass(entry.score);
+          html += `<div class="tweet ${emotionClass}" title="Sentiment Score: ${entry.score}">${safeText}</div>`;
+        });
+
+        resultsEl.innerHTML = html;
+      },
+      error: function(err) {
+        document.getElementById('results').innerHTML = '<p style="color:#f44336;text-align:center;">Error reading CSV file. Please check your file and try again.</p>';
+      }
+    });
+  });
+</script>
+</body>
+</html>

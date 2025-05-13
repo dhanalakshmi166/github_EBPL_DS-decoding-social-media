@@ -1,0 +1,78 @@
+1. Objective
+To develop a system that collects social media conversations, analyzes their content using natural language processing (NLP), and classifies the underlying emotions to uncover public sentiment trends around specific topics or events.
+
+2. Functional Requirements
+a. Data Collection
+Collect posts or comments from social media platforms (e.g., Twitter, Reddit, Instagram).
+
+Allow user to specify a keyword/topic (e.g., "mental health", "climate change").
+
+Store text content for further analysis.
+
+b. Text Preprocessing
+Clean and normalize raw text:
+
+Remove URLs, mentions, hashtags, emojis, special characters.
+
+Convert text to lowercase.
+
+Handle contractions and slang.
+
+c. Emotion Detection
+Use a pre-trained NLP model (e.g., DistilRoBERTa) to detect and classify emotions such as:
+
+Joy, Sadness, Anger, Fear, Love, Surprise, etc.
+
+Assign a probability score for each emotion per post.
+
+d. Sentiment Aggregation
+Compute average emotion distribution across all posts.
+
+Optionally, group results by:
+
+Date/time
+
+Topic
+
+User demographics (if available)
+
+e. Visualization
+Generate visual summaries:
+
+Bar chart of average emotion scores
+
+Pie chart of dominant emotions
+
+Time-series plot (if time data is collected)
+
+f. Export/Report
+Allow users to download:
+
+Raw analyzed data (CSV/JSON)
+
+Summary report (PDF/PNG of charts)
+
+3. Non-Functional Requirements
+Performance: Should handle at least 500 posts in under 1 minute.
+
+Accuracy: Use a state-of-the-art model trained for emotion classification (preferably transformer-based).
+
+Scalability: Code should allow switching or adding more platforms easily.
+
+Usability: Simple CLI or web interface to enter topic and view results.
+
+4. Technological Requirements
+Language: Python 3.8+
+
+Libraries:
+
+snscrape or API wrappers for data collection
+
+transformers, torch for NLP model
+
+pandas, numpy for data manipulation
+
+matplotlib, seaborn for visualization
+
+Environment: Can run on local machine or deployable to cloud/streamlit app
+
